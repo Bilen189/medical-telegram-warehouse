@@ -29,11 +29,11 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
-CHANNELS = {
-    "chemed": "CheMed Telegram Channel",
-    "lobelia": "Lobelia Cosmetics",
-    "tikvah_pharma": "Tikvah Pharma",
-}
+CHANNELS = [
+    "CheMed123",
+    "lobelia4cosmetics",
+    "Tikvahpharm",
+]
 
 
 def clean_channel_name(channel_name: str) -> str:
@@ -100,7 +100,7 @@ async def main():
     client = TelegramClient("telegram_scraper_session", int(API_ID), API_HASH)
 
     async with client:
-        for channel_username in CHANNELS.keys():
+        for channel_username in CHANNELS:
             await scrape_channel(client, channel_username, limit=100)
 
 
