@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,7 @@ def root():
 
 @app.get("/api/reports/top-products")
 def get_top_products(
-    limit: int = Query(10, ge=1, le=50),
+    limit: int = Query(10, ge=1, le=50, description="Number of top product terms to return"),
     db: Session = Depends(get_db),
 ):
     query = text("""
@@ -31,11 +31,22 @@ def get_top_products(
             where message_text is not null
         ) words
         where length(word) > 3
+          and lower(word) not in (
+              'from', 'with', 'this', 'that', 'call', 'price', 'birr',
+              'monday', 'telegram', 'delivery', 'school', 'infront',
+              'available', 'contact', 'order'
+          )
         group by lower(word)
         order by mention_count desc
         limit :limit
     """)
-    return db.execute(query, {"limit": limit}).mappings().all()
+
+    results = db.execute(query, {"limit": limit}).mappings().all()
+
+    if not results:
+        raise HTTPException(status_code=404, detail="No product terms found")
+
+    return results
 
 
 @app.get("/api/channels/{channel_name}/activity")
@@ -47,7 +58,7 @@ def get_channel_activity(
         select
             d.full_date::text as message_date,
             count(*) as post_count,
-            sum(m.view_count) as total_views
+            coalesce(sum(m.view_count), 0) as total_views
         from raw.fct_messages m
         join raw.dim_channels c on m.channel_key = c.channel_key
         join raw.dim_dates d on m.date_key = d.date_key
@@ -55,13 +66,19 @@ def get_channel_activity(
         group by d.full_date
         order by d.full_date
     """)
-    return db.execute(query, {"channel_name": f"%{channel_name}%"}).mappings().all()
+
+    results = db.execute(query, {"channel_name": f"%{channel_name}%"}).mappings().all()
+
+    if not results:
+        raise HTTPException(status_code=404, detail=f"No activity found for channel: {channel_name}")
+
+    return results
 
 
 @app.get("/api/search/messages")
 def search_messages(
-    query: str = Query(..., min_length=2),
-    limit: int = Query(20, ge=1, le=100),
+    query: str = Query(..., min_length=2, description="Keyword to search inside Telegram messages"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of messages to return"),
     db: Session = Depends(get_db),
 ):
     sql = text("""
@@ -76,7 +93,13 @@ def search_messages(
         order by m.view_count desc nulls last
         limit :limit
     """)
-    return db.execute(sql, {"query": f"%{query}%", "limit": limit}).mappings().all()
+
+    results = db.execute(sql, {"query": f"%{query}%", "limit": limit}).mappings().all()
+
+    if not results:
+        raise HTTPException(status_code=404, detail=f"No messages found for query: {query}")
+
+    return results
 
 
 @app.get("/api/reports/visual-content")
@@ -90,4 +113,10 @@ def get_visual_content_stats(db: Session = Depends(get_db)):
         group by channel_name, image_category
         order by channel_name, image_count desc
     """)
-    return db.execute(query).mappings().all()
+
+    results = db.execute(query).mappings().all()
+
+    if not results:
+        raise HTTPException(status_code=404, detail="No visual content statistics found")
+
+    return results
