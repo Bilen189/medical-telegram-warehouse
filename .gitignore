@@ -7,3 +7,7 @@ data/raw/
 *.session
 dbt_packages/
 target/
+data/
+yolov8n.pt
+runs/
+medical_warehouse/medical_warehouse/

@@ -36,3 +36,16 @@ models:
           - relationships:
               to: ref('dim_dates')
               field: date_key
+
+  - name: fct_image_detections
+    description: "YOLO object detections extracted from Telegram images."
+    columns:
+      - name: message_id
+        tests:
+          - not_null
+      - name: detected_class
+        tests:
+          - not_null
+      - name: image_category
+        tests:
+          - not_null
