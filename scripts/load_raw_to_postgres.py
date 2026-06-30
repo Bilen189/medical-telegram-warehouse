@@ -38,6 +38,8 @@ def main():
     with engine.begin() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
 
+    with engine.begin() as conn:
+        conn.execute(text("DROP VIEW IF EXISTS raw.stg_telegram_messages CASCADE"))
     df.to_sql(
         "telegram_messages",
         engine,
