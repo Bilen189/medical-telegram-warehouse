@@ -2,14 +2,8 @@ import subprocess
 from dagster import Definitions, ScheduleDefinition, job, op
 
 
-@op
-def scrape_telegram_data():
-    subprocess.run(["python", "src/scraper.py"], check=True)
-    return "scraping_complete"
-
-
-@op
-def load_raw_to_postgres(previous_step):
+@op(description="Load raw Telegram messages into PostgreSQL.")
+def load_raw_to_postgres():
     subprocess.run(["python", "scripts/load_raw_to_postgres.py"], check=True)
     return "raw_load_complete"
 
@@ -33,13 +27,22 @@ def load_yolo_to_postgres(previous_step):
     return "yolo_load_complete"
 
 
-@job
+@op
+def refresh_dbt_after_yolo(previous_step):
+    subprocess.run(["dbt", "run"], cwd="medical_warehouse", check=True)
+    subprocess.run(["dbt", "test"], cwd="medical_warehouse", check=True)
+    return "pipeline_complete"
+
+
+@job(
+    description="End-to-end medical Telegram ETL pipeline orchestrated with Dagster."
+)
 def medical_telegram_pipeline():
-    scraped = scrape_telegram_data()
-    loaded = load_raw_to_postgres(scraped)
-    transformed = run_dbt_transformations(loaded)
-    yolo_done = run_yolo_enrichment(transformed)
-    load_yolo_to_postgres(yolo_done)
+    raw_loaded = load_raw_to_postgres()
+    dbt_done = run_dbt_transformations(raw_loaded)
+    yolo_done = run_yolo_enrichment(dbt_done)
+    yolo_loaded = load_yolo_to_postgres(yolo_done)
+    refresh_dbt_after_yolo(yolo_loaded)
 
 
 daily_schedule = ScheduleDefinition(
@@ -50,4 +53,4 @@ daily_schedule = ScheduleDefinition(
 defs = Definitions(
     jobs=[medical_telegram_pipeline],
     schedules=[daily_schedule],
-)  
+)
